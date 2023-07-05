@@ -2,8 +2,8 @@ FROM ubuntu:23.10
 RUN apt update
 RUN apt install -y openssh-server sssd libpam-google-authenticator
 COPY ./Google_2026_07_03_27704/ /google-certs 
-COPY ./configure-debian.sh /configure-debian.sh
-RUN chmod +x /configure-debian.sh
+COPY configure.sh /configure.sh
+RUN chmod +x /configure.sh
 
 ENV domain=yaronshani.info 
 ENV certificate_file=/google-certs/Google_2026_07_03_27704.crt
@@ -17,6 +17,6 @@ ENV modify_pam_conf=yes
 ENV enable_2fa=yes
 ENV exclude_2fa_user=ubuntu
 
-RUN /configure-debian.sh
+RUN /configure.sh
 
 CMD ["/bin/sh", "-c", "sshd -o LogLevel=debug && sssd -i -d 5"]
