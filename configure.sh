@@ -81,7 +81,7 @@ while [ -z "$enable_2fa" ]; do
         if [ -z "$exclude_2fa_user" ]; then
             # if empty, ask again in a loop
             while [ -z "$exclude_2fa_user" ]; do
-                printf "Please enter user to exclude from 2FA (e.g centos/root/ubuntu/etc), this is recommended for "break glass" scenarious where 2FA fail: "
+                printf "Please enter user to exclude from 2FA (e.g centos/root/ubuntu/etc), this is recommended for 'break glass' scenarios where 2FA fail: "
                 read exclude_2fa_user
             done
 
