@@ -8,6 +8,10 @@ The script configure [PAM](https://en.wikipedia.org/wiki/Pluggable_authenticatio
 [Google Authenticator PAM module](https://github.com/google/google-authenticator-libpam) to enable 2FA.
 
 
+### Prerequisites
+
+You would need IdP that supports secure LDAP (LDAPS), for example [Google Workspace](https://workspace.google.com/).
+In order to enable LDAP in google you can read the [following guide](https://support.google.com/a/answer/9048434?hl=en).
 
 ### Installation
 
