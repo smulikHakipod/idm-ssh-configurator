@@ -30,7 +30,7 @@ The configurator will ask you a few questions and then configure your machine.
 
 ### Advanced configuration
 
-The purpose of this configurator is to make a simple config, any further config should be edited by config files:
+The purpose of this configurator is to make a simple config for simple use cases, any advanced configuration should be done by editing the following files:
 
 `/etc/pam.d/common-auth`
 `/etc/pam.d/sshd`
