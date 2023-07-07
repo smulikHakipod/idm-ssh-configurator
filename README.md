@@ -23,7 +23,7 @@ Tested on: Ubuntu 23.04, Centos Stream 9
 
 To install run:
 
-`wget -O- https://raw.githubusercontent.com/smulikHakipod/idm-ssh-configurator/main/configure.sh | sudo bash`
+`wget -O - https://raw.githubusercontent.com/smulikHakipod/idm-ssh-configurator/main/configure.sh | sudo bash`
 
 The configurator will ask you a few questions and then configure your machine.
 
