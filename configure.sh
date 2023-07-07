@@ -12,12 +12,24 @@ if [ -f /etc/pam.d/sshd ] && grep -q "pam_sss.so" /etc/pam.d/sshd; then
     exit 1
 fi
 
+# grep for "this section added by idm-ssh script" in /etc/pam.d/sshd or /etc/ssh/sshd_config and if found exit with error
+if [ -f /etc/pam.d/sshd ] && grep -q "this section added by idm-ssh script" /etc/pam.d/sshd; then
+    printf 'Leftovers of this script found /etc/pam.d/sshd. Please remove it and run this script again.\n'
+    printf 'For more info see https://github.com/smulikHakipod/idm-ssh-configurator\n'
+    exit 1
+fi
 
-# If it already comes from env varibale, don't ask for it
+if [ -f /etc/ssh/sshd_config ] && grep -q "this section added by idm-ssh script" /etc/ssh/sshd_config; then
+    printf 'Leftovers of this script found /etc/ssh/sshd_config. Please remove it and run this script again.\n'
+    printf 'For more info see https://github.com/smulikHakipod/idm-ssh-configurator\n'
+    exit 1
+fi
+
+# If it already comes from env variable, don't ask for it
 while [ -z "$domain" ]; do
     # Ask for the domain
     printf 'Please enter the domain: '
-    read domain
+    read -r domain
 done
 
 # Split the domain into its components and prefix each with dc=
@@ -35,13 +47,13 @@ done
 while [ -z "$certificate_file" ]; do
     # Ask for the certificate and key files
     printf 'Please enter the full path to the certificate file (ldap-client.crt): '
-    read certificate_file
+    read -r certificate_file
 done
 
 while [ -z "$key_file" ]; do
     # Ask for the certificate and key files
     printf 'Please enter the full path to the key file (ldap-client.key): '
-    read key_file
+    read -r key_file
 done
 
 if [ ! -f "$key_file" ]; then
@@ -50,39 +62,39 @@ if [ ! -f "$key_file" ]; then
 fi
 
 # Copy the certificate and key files to /var
-cp "$certificate_file" /var/ldap-client.crt
-cp "$key_file" /var/ldap-client.key
+cp "$certificate_file" /etc/sssd/ldap-client.crt
+cp "$key_file" /etc/sssd/ldap-client.key
 
 # Ask for LDAP groups
 if [ -z "$ldap_groups" ]; then
     printf 'Please enter LDAP groups that should have access to the server (separated by spaces), if empty would be all: '
-    read ldap_groups
+    read -r ldap_groups
 fi
 
 # Ask for LDAP groups with sudo access
 if [ -z "$sudo_ldap_groups" ]; then
     printf 'Please enter LDAP groups that should have sudo access if any (separated by spaces), if empty would be none: '
-    read sudo_ldap_groups
+    read -r sudo_ldap_groups
 fi
 
 
 # Ask for LDAP server URI
 while [ -z "$ldap_server_uri" ]; do
     printf 'Please enter the LDAP server URI (e.g ldaps://ldap.google.com): '
-    read ldap_server_uri
+    read -r ldap_server_uri
 done
 
 # Ask for 2FA enabled
 while [ -z "$enable_2fa" ]; do
     printf "Do you want to enable 2FA? (yes/no): "
-    read enable_2fa
+    read -r enable_2fa
     if [ "$enable_2fa" == "yes" ]; then
         # Ask for 2FA excluded user
         if [ -z "$exclude_2fa_user" ]; then
             # if empty, ask again in a loop
             while [ -z "$exclude_2fa_user" ]; do
                 printf "Please enter user to exclude from 2FA (e.g centos/root/ubuntu/etc), this is recommended for 'break glass' scenarios where 2FA fail: "
-                read exclude_2fa_user
+                read -r exclude_2fa_user
             done
 
         fi
@@ -100,14 +112,11 @@ if [ -x "$(command -v apt)" ]; then
         apt install -y libpam-google-authenticator
     fi
 elif [ -x "$(command -v yum)" ]; then
-    yum install -y openssh-server sssd sudo
+    yum install -y openssh-server sssd sudo authconfig
     if [ "$enable_2fa" == "yes" ]; then
-        yum install -y libpam-google-authenticator
+        yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+        yum install -y google-authenticator
     fi
-fi
-
-if [ "$enable_2fa" == "yes" ]; then
-    apt install -y libpam-google-authenticator
 fi
 
 # a function that appends a file (with multiple lines) and prompting the user with the change. Also makes a backup of the file.   
@@ -117,24 +126,27 @@ function append_file {
     backup_file=$file.bak
 
     # ask for confirmation with the file content and the change only if the shell is interactive
-    printf "The following lines will be appended to $file:\n"
-    printf "$lines\n"
+    printf "The following lines will be appended to %s:\n" "$file"
+    printf "%s\n" "$lines"
     printf 'Continue? (yes/no): '
-    read modify_file
+    read -r modify_file
     # if shell is not interactive, no need to ask for confirmation
-    if [ ! -z "$PS1" ] && [ "$modify_file" != "yes" ]; then
+    if [ -n "$PS1" ] && [ "$modify_file" != "yes" ]; then
         printf 'Aborting.\n'
         exit 1
     fi
 
-    if [ -f $file ]; then
-        cp $file $backup_file
-        printf "Backup of $file created at $backup_file\n"
+    if [ -f "$file" ]; then
+        cp "$file" "$backup_file"
+        printf "Backup of %s created at %s\n" "$file" "$backup_file"
     fi
-    echo "# this section added by idm-ssh script" >> $file
-    echo "# please remove it if you want to revert to the original configuration" >> $file
-    echo "$lines" >> $file
-    echo "# end of idm-ssh script section" >> $file
+
+    {
+      echo "# this section added by idm-ssh script"
+      echo "# please remove it if you want to revert to the original configuration"
+      echo "$lines"
+      echo "# end of idm-ssh script section"
+    } >>"$file"
 }
 
 
@@ -165,43 +177,39 @@ services = nss, pam
 domains = $domain
 
 [domain/$domain]
-ldap_tls_cert = /var/ldap-client.crt
-ldap_tls_key = /var/ldap-client.key
+debug_level = 9
+ldap_tls_cert = /etc/sssd/ldap-client.crt
+ldap_tls_key = /etc/sssd/ldap-client.key
 ldap_uri = $ldap_server_uri
 ldap_search_base = $base_dn
 id_provider = ldap
 auth_provider = ldap
 ldap_schema = rfc2307bis
 ldap_user_uuid = entryUUID
-ldap_groups_use_matching_rule_in_chain = true
-ldap_initgroups_use_matching_rule_in_chain = true
 EOF
 
 # check if ldap_groups is not empty then append following lines to sssd.conf
 #ldap_access_order = filter
 #ldap_access_filter = $ldap_access_filter
 
-if [ ! -z "$ldap_groups" ]; then
-    echo "access_provider = ldap" >> /etc/sssd/sssd.conf
-    echo "ldap_access_order = filter" >> /etc/sssd/sssd.conf
-    echo "ldap_access_filter = $ldap_access_filter" >> /etc/sssd/sssd.conf
+if [ -n "$ldap_groups" ]; then
+    {
+      echo "access_provider = ldap"
+      echo "ldap_access_order = filter"
+      echo "ldap_access_filter = $ldap_access_filter"
+    } >> /etc/sssd/sssd.conf
 fi
 
 chmod 600 /etc/sssd/sssd.conf
 
-echo "Restarting SSSD..."
-
-systemctl enable sssd
-systemctl start sssd
-
 
 
 pam_content_change() {
-    echo 'auth       required     pam_sss.so'
-    echo 'account    required     pam_sss.so'
-    echo 'password   required     pam_sss.so'
-    echo 'session    required     pam_sss.so'
-    echo "session    required     pam_mkhomedir.so skel=/etc/skel/ umask=0022" 
+#    echo 'auth       [success=1 default=ignore]      pam_sss.so use_first_pass'
+#    echo 'account    [default=bad success=ok user_unknown=ignore]     pam_sss.so'
+#    echo 'password   sufficient     pam_sss.so'
+#    echo 'session    optional     pam_sss.so'
+    echo "session    required     pam_mkhomedir.so skel=/etc/skel/ umask=0022"
     if [ "$enable_2fa" == "yes" ]; then
         echo "auth       required     pam_google_authenticator.so nullok"
     fi
@@ -209,45 +217,36 @@ pam_content_change() {
 
 append_file /etc/pam.d/sshd "$(pam_content_change)"
 
-
-printf 'PAM configuration for SSHD modified to use SSSD.\n'
-
-# Restart services
-systemctl restart sshd
-systemctl restart sssd
+# In case of redhat/centos run "authconfig --enablesssd --update"
+if [ -x "$(command -v authconfig)" ]; then
+    authconfig --enablesssd --update
+fi
 
 printf 'Services sshd and sssd restarted.\n'
 
-cat > /etc/ssh/banner <<EOF
+cat >> /etc/ssh/banner <<EOF
 Hi!
-This server is managed by identity managment (e.g Google/Active Directory/Okta/etc) instead of regular password or private keys.
+This server is managed by identity management (e.g Google/Active Directory/Okta/etc) instead of regular password or private keys.
 You should login using your identity user or email e.g "ssh john@my-company.com@4.4.4.4"
 EOF
 
-# check for 2FA enabled and add promt as well
+
+
+
+ssh_banner_content() {
+  echo "Banner /etc/ssh/banner"
+}
+append_file /etc/ssh/sshd_config "$(ssh_banner_content)"
+
 if [ "$enable_2fa" == "yes" ]; then
 
-# check for apt and install accoridngly
-if [ -x "$(command -v apt)" ]; then
-    apt install -y libpam-google-authenticator
-elif [ -x "$(command -v yum)" ]; then
-    yum install -y libpam-google-authenticator
-fi
 cat >> /etc/ssh/banner <<EOF
 
 This server also have 2FA enforced on it, which mean you need to register your device using Google Authenticator app if its your first time.
-You will be prometed for that when you login for the first time. Please scan the barcode using Google Authenticator app and enter the code to complete the registration.
+You will be promoted for that when you login for the first time. Please scan the barcode using Google Authenticator app and enter the code to complete the registration.
 Be advised that you can share your authenticator between multiple servers.
 Thank you for your cooperation.
 EOF
-
-fi
-
-echo "Banner /etc/ssh/banner" >> /etc/ssh/sshd_config
-
-
-if [ "$enable_2fa" == "yes" ]; then
-
 
 cat > /usr/local/bin/force_command.sh <<'EOF'
 #!/bin/bash
@@ -280,7 +279,7 @@ EOF
 sudo chmod +x /usr/local/bin/force_command.sh
 
 ssh_content() {
-    printf "Match User *,!$exclude_2fa_user \n"
+    printf "Match User *,!%s\n" "$exclude_2fa_user"
     printf "    ForceCommand /usr/local/bin/force_command.sh\n"
     printf "ChallengeResponseAuthentication yes\n"
 }
@@ -288,3 +287,9 @@ ssh_content() {
 append_file /etc/ssh/sshd_config "$(ssh_content)"
 
 fi ## enable_2fa fi
+
+
+# Restart services
+echo "Restarting services sshd + sssd..."
+systemctl restart sshd
+systemctl restart sssd
