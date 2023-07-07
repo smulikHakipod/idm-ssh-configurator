@@ -39,7 +39,7 @@ Those two files can control whether IdP is optional and probably more.
 
 `/etc/sssd/sssd.conf` can control allowed/deny groups, LDAP filters, and much more.
 
-`/etc/ssh/sshd_config` can control excluded users.
+`/etc/ssh/sshd_config` can control excluded users and the enforcement of 2FA (using ForceCommand ssh feature).
 
 `/etc/ssh/banner` can control the banner that will be shown to the user before login.
 
